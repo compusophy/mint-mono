@@ -50,6 +50,36 @@ Generate spiral artwork and return as base64.
 ### POST /api/generate/image
 Same as above but returns the PNG image directly.
 
+### POST /api/mint/prepare
+Prepare an NFT mint by uploading to IPFS and generating authorization signature.
+
+**Request:**
+```json
+{
+  "image_base64": "data:image/png;base64,...",
+  "fid": 12345,
+  "creator_address": "0x...",
+  "nonce": 0
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "token_id": 0,
+  "metadata_uri": "ipfs://Qm...",
+  "signature": "0x...",
+  "deadline": 1702500000,
+  "nonce": 0,
+  "contract_address": "0x...",
+  "chain_id": 84532
+}
+```
+
+### GET /api/contract-info
+Get deployed contract info for frontend.
+
 ## Deploy to Railway
 
 1. Push this `server/` folder to a Git repo
@@ -59,8 +89,14 @@ Same as above but returns the PNG image directly.
 
 ## Environment Variables
 
-None required for basic functionality.
+Required for NFT minting:
 
-Future:
-- `PINATA_API_KEY` - For IPFS uploads
-- `PINATA_SECRET_KEY` - For IPFS uploads
+```bash
+PINATA_API_KEY=your_pinata_api_key
+PINATA_SECRET_KEY=your_pinata_secret_key
+SIGNER_PRIVATE_KEY=your_server_wallet_private_key
+CONTRACT_ADDRESS=0xDeployedContractAddress
+CHAIN_ID=84532  # Base Sepolia (use 8453 for mainnet)
+```
+
+The `SIGNER_PRIVATE_KEY` must correspond to the trusted signer address set in the smart contract.

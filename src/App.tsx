@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { User, AlertCircle, Hash, Code2, Loader2 } from 'lucide-react';
+import { AlertCircle, Hash, Code2, Loader2 } from 'lucide-react';
 import { sdk } from '@farcaster/miniapp-sdk';
-
-// API endpoint
-const API_URL = 'https://gnpfp-server-production.up.railway.app';
+import { WalletButton } from './components/WalletButton';
+import { MintButton } from './components/MintButton';
+import { ShareButton } from './components/ShareButton';
+import { API_URL } from './wagmi';
 
 // Detect mobile device
 const isMobile = () => {
@@ -22,6 +23,7 @@ function App() {
   const [context, setContext] = useState<any>(null);
   const [fid, setFid] = useState<number | null>(null);
   const [devMode, setDevMode] = useState<boolean>(false);
+  const [mintedTokenId, setMintedTokenId] = useState<number | null>(null);
 
   // Initialize Farcaster SDK
   useEffect(() => {
@@ -150,12 +152,7 @@ function App() {
             </div>
           )}
           
-          {pfpFound && imageSrc && !isProcessing && (
-            <div className="flex items-center space-x-2 px-3 py-1.5 rounded-md bg-green-500/10 text-green-300 border border-green-500/20">
-              <User className="w-3.5 h-3.5" />
-              <span className="text-xs font-medium hidden sm:inline">Ready</span>
-            </div>
-          )}
+          <WalletButton />
         </div>
       </header>
 
@@ -206,12 +203,27 @@ function App() {
 
         {/* Generated Image */}
         {imageSrc && !isProcessing && (
-          <div className="absolute inset-0 flex items-center justify-center p-4">
+          <div className="absolute inset-0 flex flex-col items-center justify-center p-4 overflow-auto">
             <img
               src={imageSrc}
               alt="Generated PFP Art"
-              className="max-w-full max-h-[calc(100vh-8rem)] object-contain rounded-lg"
+              className="max-w-full max-h-[60vh] object-contain rounded-lg mb-6"
             />
+            
+            {/* Mint & Share Buttons */}
+            <div className="flex flex-col sm:flex-row items-center gap-4">
+              {!mintedTokenId && fid && (
+                <MintButton 
+                  imageBase64={imageSrc} 
+                  fid={fid}
+                  onMintSuccess={(tokenId) => setMintedTokenId(tokenId)}
+                />
+              )}
+              
+              {mintedTokenId && (
+                <ShareButton tokenId={mintedTokenId} />
+              )}
+            </div>
           </div>
         )}
       </main>

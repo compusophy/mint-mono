@@ -1,27 +1,38 @@
 # Generative PFP - Farcaster Mini App
 
-A Farcaster Mini App that takes the user's profile picture, removes the background using AI, and generates a Fibonacci-spiral generative art piece.
+A Farcaster Mini App that takes the user's profile picture, removes the background using AI, generates a Fibonacci-spiral generative art piece, and lets users mint it as an ERC1155 NFT on Base.
 
 ## Features
 
 - **Background Removal**: Server-side AI-powered background removal using `rembg`
 - **Generative Art**: Creates unique Fibonacci-spiral patterns using the user's face as texture
-- **Farcaster Integration**: Automatically fetches user PFP via Farcaster Mini App SDK
+- **NFT Minting**: Mint your artwork as an ERC1155 NFT on Base
+- **Collectible**: Others can mint copies of any artwork (ERC1155 multi-edition)
+- **Farcaster Integration**: Wallet connection via Farcaster Mini App + sharing
 - **Dev Mode**: Test with any image URL when running outside Farcaster
-- **Dark Mode**: Slate 900 dark theme throughout
 
 ## Architecture
 
 ```
-┌─────────────────────┐         ┌──────────────────────────────────┐
-│   React Frontend    │  POST   │       FastAPI Backend            │
-│   (Vercel)          │ ──────► │       (Railway)                  │
-│                     │         │                                  │
-│  - Farcaster SDK    │         │  1. Download PFP from URL        │
-│  - Display result   │ ◄────── │  2. Remove background (rembg)    │
-│                     │  base64 │  3. Generate spiral art (Pillow) │
-└─────────────────────┘         │  4. Return as base64 PNG         │
-                                └──────────────────────────────────┘
+┌─────────────────────────────┐         ┌──────────────────────────────────┐
+│     React Frontend          │  POST   │       FastAPI Backend            │
+│     (Vercel)                │ ──────► │       (Railway)                  │
+│                             │         │                                  │
+│  - Farcaster SDK            │         │  1. Download PFP from URL        │
+│  - Wagmi + Wallet           │ ◄────── │  2. Remove background (rembg)    │
+│  - Mint transactions        │  base64 │  3. Generate spiral art (Pillow) │
+│                             │         │  4. Upload to IPFS (Pinata)      │
+└─────────────────────────────┘         │  5. Sign mint authorization      │
+              │                         └──────────────────────────────────┘
+              │
+              ▼
+┌─────────────────────────────┐
+│   ERC1155 Contract (Base)   │
+│                             │
+│  - Signature-verified mint  │
+│  - Multi-edition support    │
+│  - Creator tracking         │
+└─────────────────────────────┘
 ```
 
 ## Tech Stack
@@ -30,7 +41,9 @@ A Farcaster Mini App that takes the user's profile picture, removes the backgrou
 - React 18 (TypeScript)
 - Vite
 - Tailwind CSS
+- Wagmi + viem (wallet/contract interaction)
 - @farcaster/miniapp-sdk
+- @farcaster/miniapp-wagmi-connector
 - lucide-react
 
 ### Backend
@@ -38,7 +51,14 @@ A Farcaster Mini App that takes the user's profile picture, removes the backgrou
 - FastAPI
 - rembg (AI background removal)
 - Pillow (image processing)
-- httpx (async HTTP client)
+- eth-account (EIP-712 signing)
+- httpx (Pinata IPFS uploads)
+
+### Smart Contracts
+- Solidity 0.8.24
+- Hardhat
+- OpenZeppelin Contracts v5
+- ERC1155 with EIP-712 signature minting
 
 ## Getting Started
 
@@ -67,30 +87,53 @@ source venv/bin/activate  # or venv\Scripts\activate on Windows
 # Install dependencies
 pip install -r requirements.txt
 
+# Set environment variables
+export PINATA_API_KEY=your_key
+export PINATA_SECRET_KEY=your_secret
+export SIGNER_PRIVATE_KEY=your_private_key
+export CONTRACT_ADDRESS=0x...
+export CHAIN_ID=84532  # Base Sepolia
+
 # Run server
 python main.py
-# or
-uvicorn main:app --reload --port 8000
+```
+
+### Smart Contract Development
+
+```bash
+cd contracts
+
+# Install dependencies
+npm install
+
+# Compile
+npm run compile
+
+# Run tests
+npm run test
+
+# Deploy to Base Sepolia
+npm run deploy:sepolia
+
+# Deploy to Base mainnet
+npm run deploy:base
 ```
 
 ## API Endpoints
 
-### GET /
-Health check, returns service info.
-
-### GET /health
-Health check for Railway deployment.
-
 ### POST /api/generate
 Generate spiral artwork and return as base64.
+
+### POST /api/mint/prepare
+Prepare an NFT mint: upload to IPFS and return signature.
 
 **Request:**
 ```json
 {
-  "pfp_url": "https://example.com/pfp.png",
+  "image_base64": "data:image/png;base64,...",
   "fid": 12345,
-  "remove_background": true,
-  "size": 1024
+  "creator_address": "0x...",
+  "nonce": 0
 }
 ```
 
@@ -98,54 +141,95 @@ Generate spiral artwork and return as base64.
 ```json
 {
   "success": true,
-  "image_base64": "data:image/png;base64,..."
+  "token_id": 0,
+  "metadata_uri": "ipfs://Qm...",
+  "signature": "0x...",
+  "deadline": 1702500000,
+  "contract_address": "0x...",
+  "chain_id": 84532
 }
 ```
 
-### POST /api/generate/image
-Same as above but returns the PNG image directly.
+### GET /api/contract-info
+Get deployed contract info for frontend.
 
-## Deployment
+## Environment Variables
 
-### Frontend (Vercel)
-1. Connect the repo to Vercel
-2. Deploy automatically on push
+### Server (Railway)
+```
+PINATA_API_KEY        # Pinata API key for IPFS
+PINATA_SECRET_KEY     # Pinata secret key
+SIGNER_PRIVATE_KEY    # Server wallet private key (for signing)
+CONTRACT_ADDRESS      # Deployed contract address
+CHAIN_ID              # 84532 (Base Sepolia) or 8453 (Base)
+```
 
-### Backend (Railway)
-1. Push the `server/` folder to Railway
-2. Railway auto-detects the Dockerfile
-3. Deploy!
+### Contracts
+```
+DEPLOYER_PRIVATE_KEY  # Deployer wallet private key
+BASESCAN_API_KEY      # For contract verification
+TRUSTED_SIGNER        # Server signer address (must match SIGNER_PRIVATE_KEY)
+```
 
-## Configuration
-
-Before deploying, update the Farcaster meta tags in `index.html`:
-
-1. Replace placeholder domain with your actual domain
-2. Add your `icon.png` to the `public/` folder (recommended size: 512x512)
+### Frontend
+```
+VITE_CONTRACT_ADDRESS # Contract address (optional, can be hardcoded)
+```
 
 ## Project Structure
 
 ```
-├── index.html              # Entry HTML with Farcaster meta tags
-├── public/
-│   ├── .well-known/
-│   │   └── farcaster.json  # Farcaster frame manifest
-│   └── icon.png            # App icon (add your own)
-├── src/
-│   ├── main.tsx            # React entry point
-│   ├── App.tsx             # Main app component
-│   └── index.css           # Global styles
+├── contracts/                  # Hardhat smart contract project
+│   ├── contracts/
+│   │   └── GenerativePFP.sol   # ERC1155 with signature minting
+│   ├── scripts/
+│   │   └── deploy.ts           # Deployment script
+│   ├── test/
+│   │   └── GenerativePFP.test.ts
+│   ├── hardhat.config.ts
+│   └── package.json
 ├── server/
-│   ├── main.py             # FastAPI server
-│   ├── generator.py        # Fibonacci spiral art generator
-│   ├── requirements.txt    # Python dependencies
-│   ├── Dockerfile          # Container config
-│   └── README.md           # Server documentation
+│   ├── main.py                 # FastAPI server
+│   ├── generator.py            # Spiral art generator
+│   ├── pinata.py               # IPFS upload helpers
+│   ├── signer.py               # EIP-712 signing
+│   ├── requirements.txt
+│   └── Dockerfile
+├── src/
+│   ├── main.tsx                # React entry with Wagmi provider
+│   ├── App.tsx                 # Main app component
+│   ├── wagmi.ts                # Wagmi config + contract ABI
+│   └── components/
+│       ├── WalletButton.tsx    # Connect/disconnect wallet
+│       ├── MintButton.tsx      # Mint NFT flow
+│       └── ShareButton.tsx     # Share to Farcaster
 ├── package.json
-├── tailwind.config.js
-├── vite.config.ts
-└── vercel.json
+└── README.md
 ```
+
+## Deployment Checklist
+
+1. **Deploy Contract to Base Sepolia**
+   ```bash
+   cd contracts
+   npm run deploy:sepolia
+   ```
+
+2. **Update Server Environment**
+   - Set `CONTRACT_ADDRESS` to deployed address
+   - Set `SIGNER_PRIVATE_KEY` to match contract's trusted signer
+   - Set Pinata API keys
+
+3. **Test End-to-End on Testnet**
+   - Generate artwork
+   - Connect wallet
+   - Mint NFT
+   - Verify on Basescan
+
+4. **Deploy to Base Mainnet**
+   - Update `CHAIN_ID` to 8453
+   - Deploy contract to mainnet
+   - Update all addresses
 
 ## License
 
