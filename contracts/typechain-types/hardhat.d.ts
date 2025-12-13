@@ -74,6 +74,10 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.SafeCast__factory>;
     getContractFactory(
+      name: "Pausable",
+      signerOrOptions?: ethers.Signer | FactoryOptions
+    ): Promise<Contracts.Pausable__factory>;
+    getContractFactory(
       name: "ShortStrings",
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.ShortStrings__factory>;
@@ -81,6 +85,10 @@ declare module "hardhat/types/runtime" {
       name: "Strings",
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.Strings__factory>;
+    getContractFactory(
+      name: "Compusophlets",
+      signerOrOptions?: ethers.Signer | FactoryOptions
+    ): Promise<Contracts.Compusophlets__factory>;
     getContractFactory(
       name: "GenerativePFP",
       signerOrOptions?: ethers.Signer | FactoryOptions
@@ -162,6 +170,11 @@ declare module "hardhat/types/runtime" {
       signer?: ethers.Signer
     ): Promise<Contracts.SafeCast>;
     getContractAt(
+      name: "Pausable",
+      address: string | ethers.Addressable,
+      signer?: ethers.Signer
+    ): Promise<Contracts.Pausable>;
+    getContractAt(
       name: "ShortStrings",
       address: string | ethers.Addressable,
       signer?: ethers.Signer
@@ -171,6 +184,11 @@ declare module "hardhat/types/runtime" {
       address: string | ethers.Addressable,
       signer?: ethers.Signer
     ): Promise<Contracts.Strings>;
+    getContractAt(
+      name: "Compusophlets",
+      address: string | ethers.Addressable,
+      signer?: ethers.Signer
+    ): Promise<Contracts.Compusophlets>;
     getContractAt(
       name: "GenerativePFP",
       address: string | ethers.Addressable,
@@ -238,6 +256,10 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.SafeCast>;
     deployContract(
+      name: "Pausable",
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.Pausable>;
+    deployContract(
       name: "ShortStrings",
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.ShortStrings>;
@@ -245,6 +267,10 @@ declare module "hardhat/types/runtime" {
       name: "Strings",
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.Strings>;
+    deployContract(
+      name: "Compusophlets",
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.Compusophlets>;
     deployContract(
       name: "GenerativePFP",
       signerOrOptions?: ethers.Signer | DeployContractOptions
@@ -326,6 +352,11 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.SafeCast>;
     deployContract(
+      name: "Pausable",
+      args: any[],
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.Pausable>;
+    deployContract(
       name: "ShortStrings",
       args: any[],
       signerOrOptions?: ethers.Signer | DeployContractOptions
@@ -335,6 +366,11 @@ declare module "hardhat/types/runtime" {
       args: any[],
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.Strings>;
+    deployContract(
+      name: "Compusophlets",
+      args: any[],
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.Compusophlets>;
     deployContract(
       name: "GenerativePFP",
       args: any[],

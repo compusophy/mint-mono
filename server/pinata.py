@@ -65,23 +65,15 @@ async def upload_image_to_ipfs(image_data: bytes, filename: str = "artwork.png")
 
 
 async def upload_metadata_to_ipfs(
-    name: str,
-    description: str,
     image_cid: str,
-    fid: int,
-    creator_address: str,
-    token_id: Optional[int] = None,
+    token_id: int,
 ) -> str:
     """
     Upload NFT metadata JSON to IPFS via Pinata
     
     Args:
-        name: NFT name
-        description: NFT description
         image_cid: IPFS CID of the image
-        fid: Farcaster FID of the creator
-        creator_address: Ethereum address of the creator
-        token_id: Optional token ID if known
+        token_id: Token ID for the compusophlet
     
     Returns:
         IPFS CID of the metadata JSON
@@ -91,27 +83,11 @@ async def upload_metadata_to_ipfs(
     
     # Build metadata following ERC-1155 metadata standard
     metadata = {
-        "name": name,
-        "description": description,
+        "name": f"compusophlet #{token_id}",
+        "description": "a unique compusophlet - computational philosophlets",
         "image": f"ipfs://{image_cid}",
-        "external_url": f"https://compu-gnpfp.vercel.app",
-        "attributes": [
-            {
-                "trait_type": "Creator FID",
-                "value": fid,
-            },
-            {
-                "trait_type": "Creator Address",
-                "value": creator_address,
-            },
-        ],
+        "external_url": f"https://compusophlets.vercel.app/?token={token_id}",
     }
-    
-    if token_id is not None:
-        metadata["attributes"].append({
-            "trait_type": "Token ID",
-            "value": token_id,
-        })
     
     # Pin JSON to IPFS
     async with httpx.AsyncClient() as client:
@@ -121,7 +97,7 @@ async def upload_metadata_to_ipfs(
             json={
                 "pinataContent": metadata,
                 "pinataMetadata": {
-                    "name": f"GenerativePFP-{fid}-metadata.json",
+                    "name": f"compusophlet-{token_id}-metadata.json",
                 },
             },
             timeout=30.0,

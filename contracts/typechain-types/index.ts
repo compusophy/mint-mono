@@ -36,9 +36,13 @@ export type { IERC165 } from "./@openzeppelin/contracts/utils/introspection/IERC
 export { IERC165__factory } from "./factories/@openzeppelin/contracts/utils/introspection/IERC165__factory";
 export type { SafeCast } from "./@openzeppelin/contracts/utils/math/SafeCast";
 export { SafeCast__factory } from "./factories/@openzeppelin/contracts/utils/math/SafeCast__factory";
+export type { Pausable } from "./@openzeppelin/contracts/utils/Pausable";
+export { Pausable__factory } from "./factories/@openzeppelin/contracts/utils/Pausable__factory";
 export type { ShortStrings } from "./@openzeppelin/contracts/utils/ShortStrings";
 export { ShortStrings__factory } from "./factories/@openzeppelin/contracts/utils/ShortStrings__factory";
 export type { Strings } from "./@openzeppelin/contracts/utils/Strings";
 export { Strings__factory } from "./factories/@openzeppelin/contracts/utils/Strings__factory";
+export type { Compusophlets } from "./contracts/Compusophlets";
+export { Compusophlets__factory } from "./factories/contracts/Compusophlets__factory";
 export type { GenerativePFP } from "./contracts/GenerativePFP";
 export { GenerativePFP__factory } from "./factories/contracts/GenerativePFP__factory";

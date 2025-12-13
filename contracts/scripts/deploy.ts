@@ -15,7 +15,7 @@ function prompt(question: string): Promise<string> {
 }
 
 async function main() {
-  console.log("\n=== GenerativePFP Contract Deployment ===\n");
+  console.log("\n=== compusophlets Contract Deployment ===\n");
   
   // Check if we have a private key from env, otherwise prompt
   let privateKey = process.env.DEPLOYER_PRIVATE_KEY;
@@ -64,11 +64,16 @@ async function main() {
   
   console.log("\nTrusted signer:", trustedSigner);
 
+  // Fee recipient defaults to deployer
+  const feeRecipient = deployer.address;
+  
   // Confirm before deploying
   console.log("\n--- Deployment Summary ---");
   console.log(`Network:        ${network.name} (Chain ID: ${network.config.chainId})`);
   console.log(`Deployer:       ${deployer.address}`);
   console.log(`Trusted Signer: ${trustedSigner}`);
+  console.log(`Fee Recipient:  ${feeRecipient}`);
+  console.log(`Mint Fee:       0.0003 ETH`);
   console.log(`Balance:        ${ethers.formatEther(balance)} ETH`);
   
   const confirm = await prompt("\nProceed with deployment? (y/n): ");
@@ -78,15 +83,15 @@ async function main() {
   }
 
   // Deploy the contract
-  console.log("\nDeploying contract...");
-  const GenerativePFP = await ethers.getContractFactory("GenerativePFP", deployer);
-  const contract = await GenerativePFP.deploy(trustedSigner);
+  console.log("\nDeploying Compusophlets contract...");
+  const Compusophlets = await ethers.getContractFactory("Compusophlets", deployer);
+  const contract = await Compusophlets.deploy(trustedSigner, feeRecipient);
 
   console.log("Waiting for deployment transaction...");
   await contract.waitForDeployment();
   const contractAddress = await contract.getAddress();
 
-  console.log("GenerativePFP deployed to:", contractAddress);
+  console.log("Compusophlets deployed to:", contractAddress);
   console.log("Network:", network.name);
 
   // Verify on block explorer if not on hardhat network
@@ -99,7 +104,7 @@ async function main() {
     try {
       await run("verify:verify", {
         address: contractAddress,
-        constructorArguments: [trustedSigner],
+        constructorArguments: [trustedSigner, feeRecipient],
       });
       console.log("Contract verified!");
     } catch (error: any) {

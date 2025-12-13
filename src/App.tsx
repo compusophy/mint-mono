@@ -1,238 +1,324 @@
 import { useState, useEffect } from 'react';
-import { AlertCircle, Hash, Code2, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { sdk } from '@farcaster/miniapp-sdk';
-import { WalletButton } from './components/WalletButton';
+import { useAccount, useConnect, useReadContract, useBalance } from 'wagmi';
+import { farcasterMiniApp } from '@farcaster/miniapp-wagmi-connector';
 import { MintButton } from './components/MintButton';
 import { ShareButton } from './components/ShareButton';
-import { API_URL } from './wagmi';
+import { API_URL, CONTRACT_ADDRESS, COMPUSOPHLETS_ABI } from './wagmi';
 
-// Detect mobile device
-const isMobile = () => {
-  if (typeof window === 'undefined') return false;
-  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) 
-    || window.innerWidth < 768;
-};
+// Minimum balance required (0.001 ETH in wei)
+const MIN_BALANCE = 1000000000000000n; // 0.001 ETH
+
+type AppState = 
+  | 'loading'
+  | 'connect'
+  | 'low_balance'
+  | 'generating'
+  | 'ready_to_create'
+  | 'created'
+  | 'viewing';
 
 function App() {
+  const [appState, setAppState] = useState<AppState>('loading');
   const [imageSrc, setImageSrc] = useState<string | null>(null);
-  const [isProcessing, setIsProcessing] = useState<boolean>(false);
-  const [pfpFound, setPfpFound] = useState<boolean>(false);
+  const [tokenId, setTokenId] = useState<number | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [statusMsg, setStatusMsg] = useState<string>("Initializing...");
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [context, setContext] = useState<any>(null);
-  const [fid, setFid] = useState<number | null>(null);
-  const [devMode, setDevMode] = useState<boolean>(false);
-  const [mintedTokenId, setMintedTokenId] = useState<number | null>(null);
+  const [pfpUrl, setPfpUrl] = useState<string | null>(null);
+
+  // Wagmi hooks
+  const { address, isConnected } = useAccount();
+  const { connect } = useConnect();
+  
+  // Check user's ETH balance
+  const { data: balance, isLoading: isBalanceLoading } = useBalance({
+    address: address,
+    query: {
+      enabled: !!address,
+    },
+  });
+
+  // Check if user has already created a compusophlet
+  const { data: userTokenId, refetch: refetchUserToken } = useReadContract({
+    address: CONTRACT_ADDRESS,
+    abi: COMPUSOPHLETS_ABI,
+    functionName: 'creatorTokenId',
+    args: address ? [address] : undefined,
+    query: {
+      enabled: !!address && !!CONTRACT_ADDRESS,
+    },
+  });
+
+  // Get token URI for viewing
+  const { data: tokenUri } = useReadContract({
+    address: CONTRACT_ADDRESS,
+    abi: COMPUSOPHLETS_ABI,
+    functionName: 'uri',
+    args: tokenId ? [BigInt(tokenId)] : undefined,
+    query: {
+      enabled: !!tokenId && !!CONTRACT_ADDRESS,
+    },
+  });
+
+  // Check URL params for ?token=X
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tokenParam = params.get('token');
+    if (tokenParam) {
+      const tid = parseInt(tokenParam, 10);
+      if (!isNaN(tid) && tid > 0) {
+        setTokenId(tid);
+        setAppState('viewing');
+      }
+    }
+  }, []);
 
   // Initialize Farcaster SDK
   useEffect(() => {
     const initSdk = async () => {
       try {
-        console.log("Attempting SDK initialization...");
-        setStatusMsg("Connecting to Farcaster...");
-        
-        const timeoutPromise = new Promise<never>((_, reject) => 
-          setTimeout(() => reject(new Error("SDK timeout")), 3000)
-        );
-        
-        const readyPromise = sdk.actions.ready();
-        await Promise.race([readyPromise, timeoutPromise]);
-        console.log("SDK Ready called - splash hidden");
-        setStatusMsg("Getting context...");
-        
+        await sdk.actions.ready();
         const ctx = await sdk.context;
-        console.log("SDK Context received:", ctx);
-        setContext(ctx);
         
-        if (ctx?.user?.fid) {
-          console.log("Found FID:", ctx.user.fid);
-          setFid(ctx.user.fid);
-          setStatusMsg(`FID: ${ctx.user.fid}`);
-        } else {
-          console.warn("No FID found - enabling dev mode");
-          setStatusMsg("No user context - Dev Mode");
-          setDevMode(true);
+        if (ctx?.user?.pfpUrl) {
+          setPfpUrl(ctx.user.pfpUrl);
+        }
+        
+        // Auto-connect wallet
+        if (!isConnected) {
+          connect({ connector: farcasterMiniApp() });
         }
       } catch (error) {
-        console.log("SDK not available, enabling Dev Mode:", error);
-        setStatusMsg("Dev Mode - Upload an image to test");
-        setDevMode(true);
+        console.log("SDK not available:", error);
+      }
+      
+      // If we're not viewing a specific token, check wallet state
+      if (appState === 'loading' && !tokenId) {
+        setAppState('connect');
       }
     };
     
     initSdk();
   }, []);
 
-  // Generate artwork via API
-  const generateArtwork = async (pfpUrl: string, userFid?: number) => {
-    setIsProcessing(true);
-    setErrorMsg(null);
-    setStatusMsg("Generating artwork...");
-    console.log("Calling API with:", pfpUrl);
+  // Handle wallet connection and check for existing creation
+  useEffect(() => {
+    if (!isConnected || !address) return;
+    if (appState === 'viewing') return; // Don't interrupt viewing
+    
+    // Don't re-run once we've moved past initial states
+    if (appState === 'generating' || appState === 'ready_to_create' || appState === 'created') return;
+    
+    // Wait for balance to load before doing anything
+    if (isBalanceLoading || balance === undefined) return;
 
+    const checkExistingCreation = async () => {
+      // Check balance first - require at least 0.001 ETH
+      if (balance.value < MIN_BALANCE) {
+        setAppState('low_balance');
+        return;
+      }
+
+      if (userTokenId && userTokenId > 0n) {
+        // User has already created - show their compusophlet
+        setTokenId(Number(userTokenId));
+        setAppState('created');
+        // Load their artwork from IPFS
+        await loadTokenImage();
+      } else if (pfpUrl) {
+        // User hasn't created - generate artwork
+        setAppState('generating');
+        await generateArtwork(pfpUrl);
+      } else {
+        setAppState('connect');
+      }
+    };
+
+    checkExistingCreation();
+  }, [isConnected, address, userTokenId, pfpUrl, balance, isBalanceLoading, appState]);
+
+  // Load token image from IPFS when viewing or when user has already created
+  useEffect(() => {
+    if (tokenUri && (appState === 'viewing' || appState === 'created')) {
+      loadImageFromUri(tokenUri);
+    }
+  }, [tokenUri, appState]);
+
+  const loadTokenImage = async () => {
+    try {
+      // Fetch token URI from contract, then load image
+      if (tokenUri) {
+        await loadImageFromUri(tokenUri);
+      }
+    } catch (err) {
+      console.error('Failed to load token image:', err);
+    }
+  };
+
+  const loadImageFromUri = async (uri: string) => {
+    try {
+      // Convert ipfs:// to gateway URL
+      const httpUri = uri.replace('ipfs://', 'https://gateway.pinata.cloud/ipfs/');
+      const response = await fetch(httpUri);
+      const metadata = await response.json();
+      
+      if (metadata.image) {
+        const imageUrl = metadata.image.replace('ipfs://', 'https://gateway.pinata.cloud/ipfs/');
+        setImageSrc(imageUrl);
+      }
+    } catch (err) {
+      console.error('Failed to load metadata:', err);
+    }
+  };
+
+  const generateArtwork = async (url: string) => {
     try {
       const response = await fetch(`${API_URL}/api/generate`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          pfp_url: pfpUrl,
-          fid: userFid,
+          pfp_url: url,
           remove_background: true,
           size: 1024,
         }),
       });
 
       const data = await response.json();
-      console.log("API response:", data);
 
       if (data.success && data.image_base64) {
         setImageSrc(data.image_base64);
-        setPfpFound(true);
-        setStatusMsg("Artwork generated!");
+        setAppState('ready_to_create');
       } else {
-        throw new Error(data.error || "Generation failed");
+        throw new Error(data.error || 'Generation failed');
       }
     } catch (err) {
-      console.error("API call failed:", err);
-      setErrorMsg(`Error: ${err}`);
-      setStatusMsg("Generation failed");
-    } finally {
-      setIsProcessing(false);
+      console.error('Generation failed:', err);
+      setErrorMsg(`Failed to generate: ${err}`);
+      setAppState('connect');
     }
   };
 
-  // Process PFP when context is available
-  useEffect(() => {
-    if (context?.user?.pfpUrl && !pfpFound && !devMode) {
-      const pfpUrl = context.user.pfpUrl;
-      console.log("Processing PFP from Farcaster:", pfpUrl);
-      generateArtwork(pfpUrl, context.user.fid);
-    }
-  }, [context, pfpFound, devMode]);
-
-  // Dev mode: URL input for testing
-  const [testUrl, setTestUrl] = useState<string>("");
-  
-  const handleTestGenerate = () => {
-    if (testUrl) {
-      generateArtwork(testUrl);
-    }
+  const handleMintSuccess = (tid: number) => {
+    setTokenId(tid);
+    setAppState('created');
+    refetchUserToken();
   };
+
+  const handleConnect = () => {
+    connect({ connector: farcasterMiniApp() });
+  };
+
+  // Render loading state
+  if (appState === 'loading') {
+    return (
+      <div className="flex items-center justify-center h-screen w-screen bg-black">
+        <Loader2 className="w-8 h-8 text-white animate-spin" />
+      </div>
+    );
+  }
+
+  // Render connect state
+  if (appState === 'connect' && !isConnected) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen w-screen bg-black text-white">
+        <p className="text-slate-400 mb-6">connect your wallet to create your compusophlet</p>
+        <button
+          onClick={handleConnect}
+          className="px-8 py-4 bg-white text-black rounded-xl font-semibold text-lg hover:bg-slate-200 transition-all"
+        >
+          connect
+        </button>
+      </div>
+    );
+  }
+
+  // Render low balance state
+  if (appState === 'low_balance') {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen w-screen bg-black text-white px-8">
+        <p className="text-slate-400 text-center">
+          you need at least 0.001 eth to use compusophlets
+        </p>
+      </div>
+    );
+  }
+
+  // Render generating state
+  if (appState === 'generating') {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen w-screen bg-black text-white">
+        <Loader2 className="w-12 h-12 animate-spin mb-4" />
+        <p className="text-slate-400">creating your compusophlet...</p>
+      </div>
+    );
+  }
+
+  // Main render with image and CTAs
+  const isViewing = appState === 'viewing';
+  const isCreated = appState === 'created';
+  const isReadyToCreate = appState === 'ready_to_create';
 
   return (
-    <div className="flex flex-col h-screen w-screen bg-slate-900 text-white overflow-hidden">
-      {/* Header */}
-      <header className="flex-none h-14 bg-slate-800 border-b border-slate-700 flex items-center justify-between px-4 z-10">
-        <div className="flex items-center space-x-2">
-          <Code2 className="w-6 h-6 text-blue-400" />
-          <h1 className="font-bold text-lg tracking-tight">Generative <span className="text-slate-400 font-normal">PFP</span></h1>
-        </div>
-
-        <div className="flex items-center space-x-3">
-          {devMode && (
-            <div className="flex items-center space-x-2 px-3 py-1.5 rounded-md bg-yellow-500/10 text-yellow-300 border border-yellow-500/20">
-              <span className="text-xs font-medium">DEV</span>
-            </div>
-          )}
-
-          {errorMsg && (
-            <div className="flex items-center space-x-2 px-3 py-1.5 rounded-md bg-red-500/10 text-red-300 border border-red-500/20" title={errorMsg}>
-              <AlertCircle className="w-3.5 h-3.5" />
-              <span className="text-xs font-medium hidden sm:inline">Error</span>
-            </div>
-          )}
-
-          {fid && (
-            <div className="flex items-center space-x-2 px-3 py-1.5 rounded-md bg-blue-500/10 text-blue-300 border border-blue-500/20">
-              <Hash className="w-3.5 h-3.5" />
-              <span className="text-xs font-medium">FID: {fid}</span>
-            </div>
-          )}
-          
-          <WalletButton />
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="flex-1 relative overflow-hidden bg-black">
-        {/* Dev Mode UI */}
-        {devMode && !imageSrc && !isProcessing && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center p-8">
-            <div className="w-full max-w-md space-y-4">
-              <p className="text-slate-400 text-sm text-center mb-4">
-                Dev Mode: Enter a PFP URL to test
-              </p>
-              
-              <input
-                type="text"
-                value={testUrl}
-                onChange={(e) => setTestUrl(e.target.value)}
-                placeholder="https://example.com/pfp.png"
-                className="w-full px-4 py-3 bg-slate-800 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
-              />
-              
-              <button
-                onClick={handleTestGenerate}
-                disabled={!testUrl}
-                className="w-full py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-slate-700 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors"
-              >
-                Generate Artwork
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Processing State */}
-        {isProcessing && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <Loader2 className="w-12 h-12 text-purple-500 animate-spin" />
-            <p className="mt-4 text-slate-400 text-sm">{statusMsg}</p>
-          </div>
-        )}
-
-        {/* Status message (when not processing and no image) */}
-        {!isProcessing && !imageSrc && !devMode && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <Loader2 className="w-8 h-8 text-purple-500 animate-spin mb-4" />
-            <p className="text-slate-400 text-sm">{statusMsg}</p>
-          </div>
-        )}
-
-        {/* Generated Image */}
-        {imageSrc && !isProcessing && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center p-4 overflow-auto">
-            <img
-              src={imageSrc}
-              alt="Generated PFP Art"
-              className="max-w-full max-h-[60vh] object-contain rounded-lg mb-6"
-            />
-            
-            {/* Mint & Share Buttons */}
-            <div className="flex flex-col sm:flex-row items-center gap-4">
-              {!mintedTokenId && fid && (
-                <MintButton 
-                  imageBase64={imageSrc} 
-                  fid={fid}
-                  onMintSuccess={(tokenId) => setMintedTokenId(tokenId)}
-                />
-              )}
-              
-              {mintedTokenId && (
-                <ShareButton tokenId={mintedTokenId} />
-              )}
-            </div>
+    <div className="flex flex-col h-screen w-screen bg-black text-white">
+      {/* Main Content - Centered Image */}
+      <main className="flex-1 flex items-center justify-center p-4 pb-28">
+        {imageSrc ? (
+          <img
+            src={imageSrc}
+            alt="compusophlet"
+            className="max-w-full max-h-full object-contain rounded-lg"
+          />
+        ) : (
+          <div className="flex flex-col items-center">
+            <Loader2 className="w-8 h-8 animate-spin mb-4" />
+            <p className="text-slate-400 text-sm">loading artwork...</p>
           </div>
         )}
       </main>
 
-      {/* Status Bar */}
-      <footer className="flex-none h-8 bg-slate-800 border-t border-slate-700 flex items-center justify-between px-4">
-        <span className="text-xs text-slate-500">{statusMsg}</span>
-        <span className="text-xs text-slate-600">{isMobile() ? '📱 Mobile' : '🖥️ Desktop'}</span>
-      </footer>
+      {/* Sticky CTA Footer */}
+      {imageSrc && (
+        <div className="fixed bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black via-black/90 to-transparent">
+          <div className="flex flex-col items-center gap-3">
+            {isReadyToCreate && (
+              <MintButton
+                imageBase64={imageSrc}
+                tokenId={0}
+                onMintSuccess={handleMintSuccess}
+                isCollecting={false}
+              />
+            )}
+
+            {isViewing && tokenId && (
+              <MintButton
+                imageBase64={imageSrc}
+                tokenId={tokenId}
+                onMintSuccess={() => {}}
+                isCollecting={true}
+              />
+            )}
+
+            {isCreated && tokenId && (
+              <>
+                <MintButton
+                  imageBase64={imageSrc}
+                  tokenId={tokenId}
+                  onMintSuccess={() => {}}
+                  isCollecting={true}
+                />
+                <ShareButton tokenId={tokenId} />
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Error display */}
+      {errorMsg && (
+        <div className="fixed top-4 left-4 right-4 p-4 bg-red-500/20 border border-red-500/50 rounded-lg">
+          <p className="text-red-300 text-sm text-center">{errorMsg}</p>
+        </div>
+      )}
     </div>
   );
 }

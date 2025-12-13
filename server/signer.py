@@ -8,8 +8,8 @@ from eth_account import Account
 from eth_account.messages import encode_typed_data
 
 
-# EIP-712 domain for GenerativePFP contract
-DOMAIN_NAME = "GenerativePFP"
+# EIP-712 domain for Compusophlets contract
+DOMAIN_NAME = "Compusophlets"
 DOMAIN_VERSION = "1"
 
 # Default chain ID (Base mainnet = 8453, Base Sepolia = 84532)
@@ -50,7 +50,6 @@ def create_mint_signature(
     token_id: int,
     uri: str,
     amount: int,
-    fid: int,
     nonce: int,
     deadline: int | None = None,
 ) -> dict:
@@ -59,10 +58,9 @@ def create_mint_signature(
     
     Args:
         minter_address: Address that will call mint
-        token_id: Token ID to mint (0 for new artwork)
+        token_id: Token ID to mint (0 for new creation)
         uri: Metadata URI
         amount: Number of tokens to mint
-        fid: Farcaster FID
         nonce: User's current nonce from contract
         deadline: Signature expiration timestamp (default: 1 hour from now)
     
@@ -76,7 +74,7 @@ def create_mint_signature(
     if deadline is None:
         deadline = int(time.time()) + 3600  # 1 hour from now
     
-    # EIP-712 typed data
+    # EIP-712 typed data (no FID - removed from contract)
     typed_data = {
         "types": {
             "EIP712Domain": [
@@ -90,7 +88,6 @@ def create_mint_signature(
                 {"name": "tokenId", "type": "uint256"},
                 {"name": "uri", "type": "string"},
                 {"name": "amount", "type": "uint256"},
-                {"name": "fid", "type": "uint256"},
                 {"name": "nonce", "type": "uint256"},
                 {"name": "deadline", "type": "uint256"},
             ],
@@ -107,7 +104,6 @@ def create_mint_signature(
             "tokenId": token_id,
             "uri": uri,
             "amount": amount,
-            "fid": fid,
             "nonce": nonce,
             "deadline": deadline,
         },
