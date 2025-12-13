@@ -285,7 +285,7 @@ function App() {
                 imageBase64={imageSrc}
                 tokenId={0}
                 onMintSuccess={handleMintSuccess}
-                isCollecting={false}
+                isCollecting={true}
               />
             )}
 
