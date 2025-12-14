@@ -37,10 +37,12 @@ export interface CompusophletsInterface extends Interface {
       | "exists"
       | "feeRecipient"
       | "getNextTokenId"
+      | "hasCollected"
       | "hasCreated"
       | "isApprovedForAll"
       | "mintFee"
       | "mintWithSignature"
+      | "name"
       | "nonces"
       | "owner"
       | "pause"
@@ -51,8 +53,11 @@ export interface CompusophletsInterface extends Interface {
       | "setApprovalForAll"
       | "setFeeRecipient"
       | "setMintFee"
+      | "setTokenURI"
+      | "setTokenURIBatch"
       | "setTrustedSigner"
       | "supportsInterface"
+      | "symbol"
       | "tokenCreators"
       | "tokenURIs"
       | "totalSupply()"
@@ -121,6 +126,10 @@ export interface CompusophletsInterface extends Interface {
     values?: undefined
   ): string;
   encodeFunctionData(
+    functionFragment: "hasCollected",
+    values: [BigNumberish, AddressLike]
+  ): string;
+  encodeFunctionData(
     functionFragment: "hasCreated",
     values: [AddressLike]
   ): string;
@@ -133,6 +142,7 @@ export interface CompusophletsInterface extends Interface {
     functionFragment: "mintWithSignature",
     values: [BigNumberish, string, BigNumberish, BigNumberish, BytesLike]
   ): string;
+  encodeFunctionData(functionFragment: "name", values?: undefined): string;
   encodeFunctionData(functionFragment: "nonces", values: [AddressLike]): string;
   encodeFunctionData(functionFragment: "owner", values?: undefined): string;
   encodeFunctionData(functionFragment: "pause", values?: undefined): string;
@@ -168,6 +178,14 @@ export interface CompusophletsInterface extends Interface {
     values: [BigNumberish]
   ): string;
   encodeFunctionData(
+    functionFragment: "setTokenURI",
+    values: [BigNumberish, string]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "setTokenURIBatch",
+    values: [BigNumberish[], string[]]
+  ): string;
+  encodeFunctionData(
     functionFragment: "setTrustedSigner",
     values: [AddressLike]
   ): string;
@@ -175,6 +193,7 @@ export interface CompusophletsInterface extends Interface {
     functionFragment: "supportsInterface",
     values: [BytesLike]
   ): string;
+  encodeFunctionData(functionFragment: "symbol", values?: undefined): string;
   encodeFunctionData(
     functionFragment: "tokenCreators",
     values: [BigNumberish]
@@ -238,6 +257,10 @@ export interface CompusophletsInterface extends Interface {
     functionFragment: "getNextTokenId",
     data: BytesLike
   ): Result;
+  decodeFunctionResult(
+    functionFragment: "hasCollected",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(functionFragment: "hasCreated", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "isApprovedForAll",
@@ -248,6 +271,7 @@ export interface CompusophletsInterface extends Interface {
     functionFragment: "mintWithSignature",
     data: BytesLike
   ): Result;
+  decodeFunctionResult(functionFragment: "name", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "nonces", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "owner", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "pause", data: BytesLike): Result;
@@ -274,6 +298,14 @@ export interface CompusophletsInterface extends Interface {
   ): Result;
   decodeFunctionResult(functionFragment: "setMintFee", data: BytesLike): Result;
   decodeFunctionResult(
+    functionFragment: "setTokenURI",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "setTokenURIBatch",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
     functionFragment: "setTrustedSigner",
     data: BytesLike
   ): Result;
@@ -281,6 +313,7 @@ export interface CompusophletsInterface extends Interface {
     functionFragment: "supportsInterface",
     data: BytesLike
   ): Result;
+  decodeFunctionResult(functionFragment: "symbol", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "tokenCreators",
     data: BytesLike
@@ -630,6 +663,12 @@ export interface Compusophlets extends BaseContract {
 
   getNextTokenId: TypedContractMethod<[], [bigint], "view">;
 
+  hasCollected: TypedContractMethod<
+    [arg0: BigNumberish, arg1: AddressLike],
+    [boolean],
+    "view"
+  >;
+
   hasCreated: TypedContractMethod<[account: AddressLike], [boolean], "view">;
 
   isApprovedForAll: TypedContractMethod<
@@ -643,7 +682,7 @@ export interface Compusophlets extends BaseContract {
   mintWithSignature: TypedContractMethod<
     [
       tokenId: BigNumberish,
-      uri: string,
+      _uri: string,
       amount: BigNumberish,
       deadline: BigNumberish,
       signature: BytesLike
@@ -651,6 +690,8 @@ export interface Compusophlets extends BaseContract {
     [void],
     "payable"
   >;
+
+  name: TypedContractMethod<[], [string], "view">;
 
   nonces: TypedContractMethod<[arg0: AddressLike], [bigint], "view">;
 
@@ -700,6 +741,18 @@ export interface Compusophlets extends BaseContract {
 
   setMintFee: TypedContractMethod<[_fee: BigNumberish], [void], "nonpayable">;
 
+  setTokenURI: TypedContractMethod<
+    [tokenId: BigNumberish, _uri: string],
+    [void],
+    "nonpayable"
+  >;
+
+  setTokenURIBatch: TypedContractMethod<
+    [tokenIds: BigNumberish[], uris: string[]],
+    [void],
+    "nonpayable"
+  >;
+
   setTrustedSigner: TypedContractMethod<
     [_signer: AddressLike],
     [void],
@@ -711,6 +764,8 @@ export interface Compusophlets extends BaseContract {
     [boolean],
     "view"
   >;
+
+  symbol: TypedContractMethod<[], [string], "view">;
 
   tokenCreators: TypedContractMethod<[arg0: BigNumberish], [string], "view">;
 
@@ -798,6 +853,13 @@ export interface Compusophlets extends BaseContract {
     nameOrSignature: "getNextTokenId"
   ): TypedContractMethod<[], [bigint], "view">;
   getFunction(
+    nameOrSignature: "hasCollected"
+  ): TypedContractMethod<
+    [arg0: BigNumberish, arg1: AddressLike],
+    [boolean],
+    "view"
+  >;
+  getFunction(
     nameOrSignature: "hasCreated"
   ): TypedContractMethod<[account: AddressLike], [boolean], "view">;
   getFunction(
@@ -815,7 +877,7 @@ export interface Compusophlets extends BaseContract {
   ): TypedContractMethod<
     [
       tokenId: BigNumberish,
-      uri: string,
+      _uri: string,
       amount: BigNumberish,
       deadline: BigNumberish,
       signature: BytesLike
@@ -823,6 +885,9 @@ export interface Compusophlets extends BaseContract {
     [void],
     "payable"
   >;
+  getFunction(
+    nameOrSignature: "name"
+  ): TypedContractMethod<[], [string], "view">;
   getFunction(
     nameOrSignature: "nonces"
   ): TypedContractMethod<[arg0: AddressLike], [bigint], "view">;
@@ -878,11 +943,28 @@ export interface Compusophlets extends BaseContract {
     nameOrSignature: "setMintFee"
   ): TypedContractMethod<[_fee: BigNumberish], [void], "nonpayable">;
   getFunction(
+    nameOrSignature: "setTokenURI"
+  ): TypedContractMethod<
+    [tokenId: BigNumberish, _uri: string],
+    [void],
+    "nonpayable"
+  >;
+  getFunction(
+    nameOrSignature: "setTokenURIBatch"
+  ): TypedContractMethod<
+    [tokenIds: BigNumberish[], uris: string[]],
+    [void],
+    "nonpayable"
+  >;
+  getFunction(
     nameOrSignature: "setTrustedSigner"
   ): TypedContractMethod<[_signer: AddressLike], [void], "nonpayable">;
   getFunction(
     nameOrSignature: "supportsInterface"
   ): TypedContractMethod<[interfaceId: BytesLike], [boolean], "view">;
+  getFunction(
+    nameOrSignature: "symbol"
+  ): TypedContractMethod<[], [string], "view">;
   getFunction(
     nameOrSignature: "tokenCreators"
   ): TypedContractMethod<[arg0: BigNumberish], [string], "view">;

@@ -16,6 +16,10 @@ import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 contract Compusophlets is ERC1155, ERC1155Supply, Ownable, Pausable, EIP712 {
     using ECDSA for bytes32;
 
+    // Contract metadata for OpenSea/marketplaces
+    string public constant name = "compusophlets";
+    string public constant symbol = "CMPS";
+
     // Contract name for EIP-712
     string public constant NAME = "Compusophlets";
     string public constant VERSION = "1";
@@ -41,6 +45,9 @@ contract Compusophlets is ERC1155, ERC1155Supply, Ownable, Pausable, EIP712 {
 
     // Nonces for replay protection (address => nonce)
     mapping(address => uint256) public nonces;
+
+    // Mapping to track if an address has collected a specific token (one collect per token per address)
+    mapping(uint256 => mapping(address => bool)) public hasCollected;
 
     // EIP-712 type hash for mint authorization
     bytes32 public constant MINT_TYPEHASH = keccak256(
@@ -70,6 +77,7 @@ contract Compusophlets is ERC1155, ERC1155Supply, Ownable, Pausable, EIP712 {
     error ZeroAddress();
     error TokenNotCreated();
     error AlreadyCreated();
+    error AlreadyCollected();
     error InsufficientFee();
     error WithdrawFailed();
 
@@ -87,14 +95,14 @@ contract Compusophlets is ERC1155, ERC1155Supply, Ownable, Pausable, EIP712 {
     /**
      * @notice Mint a new compusophlet or collect copies with server authorization
      * @param tokenId Token ID to mint (0 for new creation, existing ID for collecting)
-     * @param uri Metadata URI (only used for new creations)
+     * @param _uri Metadata URI (only used for new creations)
      * @param amount Number of tokens to mint
      * @param deadline Signature expiration timestamp
      * @param signature Server's EIP-712 signature
      */
     function mintWithSignature(
         uint256 tokenId,
-        string calldata uri,
+        string calldata _uri,
         uint256 amount,
         uint256 deadline,
         bytes calldata signature
@@ -123,6 +131,8 @@ contract Compusophlets is ERC1155, ERC1155Supply, Ownable, Pausable, EIP712 {
             actualTokenId = tokenId;
             // Verify token exists for collecting
             if (tokenCreators[actualTokenId] == address(0)) revert TokenNotCreated();
+            // Check one-collect-per-token-per-address
+            if (hasCollected[actualTokenId][msg.sender]) revert AlreadyCollected();
         }
 
         // Verify signature
@@ -130,7 +140,7 @@ contract Compusophlets is ERC1155, ERC1155Supply, Ownable, Pausable, EIP712 {
             MINT_TYPEHASH,
             msg.sender,
             tokenId, // Use original tokenId (0 for new) in signature
-            keccak256(bytes(uri)),
+            keccak256(bytes(_uri)),
             amount,
             currentNonce,
             deadline
@@ -144,11 +154,14 @@ contract Compusophlets is ERC1155, ERC1155Supply, Ownable, Pausable, EIP712 {
         // For new creations, store creator info
         if (isNewCreation) {
             tokenCreators[actualTokenId] = msg.sender;
-            tokenURIs[actualTokenId] = uri;
+            tokenURIs[actualTokenId] = _uri;
             creatorTokenId[msg.sender] = actualTokenId;
             
-            emit CompusophletCreated(actualTokenId, msg.sender, uri);
+            emit CompusophletCreated(actualTokenId, msg.sender, _uri);
         }
+
+        // Mark as collected
+        hasCollected[actualTokenId][msg.sender] = true;
 
         // Mint the tokens
         _mint(msg.sender, actualTokenId, amount, "");
@@ -200,6 +213,31 @@ contract Compusophlets is ERC1155, ERC1155Supply, Ownable, Pausable, EIP712 {
         address oldSigner = trustedSigner;
         trustedSigner = _signer;
         emit TrustedSignerUpdated(oldSigner, _signer);
+    }
+
+    /**
+     * @notice Update a token's metadata URI
+     * @param tokenId The token ID to update
+     * @param _uri The new metadata URI
+     */
+    function setTokenURI(uint256 tokenId, string calldata _uri) external onlyOwner {
+        if (tokenCreators[tokenId] == address(0)) revert TokenNotCreated();
+        tokenURIs[tokenId] = _uri;
+        emit URI(_uri, tokenId);
+    }
+
+    /**
+     * @notice Batch update multiple token URIs
+     * @param tokenIds Array of token IDs to update
+     * @param uris Array of new URIs (must match tokenIds length)
+     */
+    function setTokenURIBatch(uint256[] calldata tokenIds, string[] calldata uris) external onlyOwner {
+        require(tokenIds.length == uris.length, "Length mismatch");
+        for (uint256 i = 0; i < tokenIds.length; i++) {
+            if (tokenCreators[tokenIds[i]] == address(0)) revert TokenNotCreated();
+            tokenURIs[tokenIds[i]] = uris[i];
+            emit URI(uris[i], tokenIds[i]);
+        }
     }
 
     /**

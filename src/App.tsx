@@ -12,7 +12,7 @@ const MIN_BALANCE = 1000000000000000n; // 0.001 ETH
 
 type AppState = 
   | 'loading'
-  | 'connect'
+  | 'not_miniapp'
   | 'low_balance'
   | 'generating'
   | 'ready_to_create'
@@ -25,6 +25,9 @@ function App() {
   const [tokenId, setTokenId] = useState<number | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [pfpUrl, setPfpUrl] = useState<string | null>(null);
+  const [sdkReady, setSdkReady] = useState(false);
+  const [justCollected, setJustCollected] = useState(false); // Delay before showing share button
+  const [imageLoaded, setImageLoaded] = useState(false); // Track if browser has loaded the image
 
   // Wagmi hooks
   const { address, isConnected } = useAccount();
@@ -60,7 +63,20 @@ function App() {
     },
   });
 
-  // Check URL params for ?token=X
+  // Check if user has already collected this token
+  const { data: userBalance, refetch: refetchBalance } = useReadContract({
+    address: CONTRACT_ADDRESS,
+    abi: COMPUSOPHLETS_ABI,
+    functionName: 'balanceOf',
+    args: address && tokenId ? [address, BigInt(tokenId)] : undefined,
+    query: {
+      enabled: !!address && !!tokenId && !!CONTRACT_ADDRESS,
+    },
+  });
+
+  const hasAlreadyCollected = userBalance !== undefined && userBalance > 0n;
+
+  // Check URL params for ?token=X (viewing mode)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const tokenParam = params.get('token');
@@ -73,28 +89,35 @@ function App() {
     }
   }, []);
 
-  // Initialize Farcaster SDK
+  // Initialize Farcaster SDK - REQUIRED
   useEffect(() => {
     const initSdk = async () => {
       try {
+        // Signal ready to Farcaster
         await sdk.actions.ready();
+        
+        // Get user context
         const ctx = await sdk.context;
         
-        if (ctx?.user?.pfpUrl) {
-          setPfpUrl(ctx.user.pfpUrl);
+        if (!ctx?.user?.pfpUrl) {
+          // No user context = not in a mini app
+          setAppState('not_miniapp');
+          return;
         }
         
-        // Auto-connect wallet
+        setPfpUrl(ctx.user.pfpUrl);
+        setSdkReady(true);
+        
+        // Auto-connect wallet via Farcaster
         if (!isConnected) {
           connect({ connector: farcasterMiniApp() });
         }
       } catch (error) {
-        console.log("SDK not available:", error);
-      }
-      
-      // If we're not viewing a specific token, check wallet state
-      if (appState === 'loading' && !tokenId) {
-        setAppState('connect');
+        console.error("SDK initialization failed:", error);
+        // If viewing a token, allow it even outside mini app
+        if (appState !== 'viewing') {
+          setAppState('not_miniapp');
+        }
       }
     };
     
@@ -103,17 +126,14 @@ function App() {
 
   // Handle wallet connection and check for existing creation
   useEffect(() => {
+    if (!sdkReady) return;
     if (!isConnected || !address) return;
-    if (appState === 'viewing') return; // Don't interrupt viewing
-    
-    // Don't re-run once we've moved past initial states
+    if (appState === 'viewing') return;
     if (appState === 'generating' || appState === 'ready_to_create' || appState === 'created') return;
-    
-    // Wait for balance to load before doing anything
     if (isBalanceLoading || balance === undefined) return;
 
     const checkExistingCreation = async () => {
-      // Check balance first - require at least 0.001 ETH
+      // Check balance first
       if (balance.value < MIN_BALANCE) {
         setAppState('low_balance');
         return;
@@ -123,19 +143,15 @@ function App() {
         // User has already created - show their compusophlet
         setTokenId(Number(userTokenId));
         setAppState('created');
-        // Load their artwork from IPFS
-        await loadTokenImage();
       } else if (pfpUrl) {
         // User hasn't created - generate artwork
         setAppState('generating');
         await generateArtwork(pfpUrl);
-      } else {
-        setAppState('connect');
       }
     };
 
     checkExistingCreation();
-  }, [isConnected, address, userTokenId, pfpUrl, balance, isBalanceLoading, appState]);
+  }, [sdkReady, isConnected, address, userTokenId, pfpUrl, balance, isBalanceLoading, appState]);
 
   // Load token image from IPFS when viewing or when user has already created
   useEffect(() => {
@@ -144,20 +160,9 @@ function App() {
     }
   }, [tokenUri, appState]);
 
-  const loadTokenImage = async () => {
-    try {
-      // Fetch token URI from contract, then load image
-      if (tokenUri) {
-        await loadImageFromUri(tokenUri);
-      }
-    } catch (err) {
-      console.error('Failed to load token image:', err);
-    }
-  };
-
   const loadImageFromUri = async (uri: string) => {
     try {
-      // Convert ipfs:// to gateway URL
+      setImageLoaded(false); // Reset while loading new image
       const httpUri = uri.replace('ipfs://', 'https://gateway.pinata.cloud/ipfs/');
       const response = await fetch(httpUri);
       const metadata = await response.json();
@@ -194,18 +199,32 @@ function App() {
     } catch (err) {
       console.error('Generation failed:', err);
       setErrorMsg(`Failed to generate: ${err}`);
-      setAppState('connect');
     }
   };
 
-  const handleMintSuccess = (tid: number) => {
-    setTokenId(tid);
-    setAppState('created');
-    refetchUserToken();
+  const handleMintSuccess = async (tid: number) => {
+    // DON'T change appState yet - let MintButton show its success animation
+    
+    // Refetch to get actual token ID in background
+    const { data: actualTokenId } = await refetchUserToken();
+    const finalTokenId = actualTokenId ? Number(actualTokenId) : tid;
+    setTokenId(finalTokenId);
+    
+    // Wait for MintButton's 4 second success animation, THEN transition
+    setTimeout(async () => {
+      await refetchBalance();
+      setAppState('created');
+      // hasAlreadyCollected will be true, so ShareButton shows immediately
+    }, 4000);
   };
 
-  const handleConnect = () => {
-    connect({ connector: farcasterMiniApp() });
+  // Handle collect success (for viewing/collecting others' tokens)
+  const handleCollectSuccess = () => {
+    setJustCollected(true);
+    setTimeout(async () => {
+      await refetchBalance();
+      setJustCollected(false);
+    }, 4000);
   };
 
   // Render loading state
@@ -217,17 +236,13 @@ function App() {
     );
   }
 
-  // Render connect state
-  if (appState === 'connect' && !isConnected) {
+  // Render not in mini app state
+  if (appState === 'not_miniapp') {
     return (
-      <div className="flex flex-col items-center justify-center h-screen w-screen bg-black text-white">
-        <p className="text-slate-400 mb-6">connect your wallet to create your compusophlet</p>
-        <button
-          onClick={handleConnect}
-          className="px-8 py-4 bg-white text-black rounded-xl font-semibold text-lg hover:bg-slate-200 transition-all"
-        >
-          connect
-        </button>
+      <div className="flex flex-col items-center justify-center h-screen w-screen bg-black text-white px-8">
+        <p className="text-slate-400 text-center text-lg">
+          open this app in farcaster
+        </p>
       </div>
     );
   }
@@ -262,22 +277,27 @@ function App() {
     <div className="flex flex-col h-screen w-screen bg-black text-white">
       {/* Main Content - Centered Image */}
       <main className="flex-1 flex items-center justify-center p-4 pb-28">
-        {imageSrc ? (
-          <img
-            src={imageSrc}
-            alt="compusophlet"
-            className="max-w-full max-h-full object-contain rounded-lg"
-          />
-        ) : (
+        {/* Show loader until image is actually loaded in browser */}
+        {(!imageSrc || (!imageLoaded && !imageSrc.startsWith('data:'))) && (
           <div className="flex flex-col items-center">
             <Loader2 className="w-8 h-8 animate-spin mb-4" />
             <p className="text-slate-400 text-sm">loading artwork...</p>
           </div>
         )}
+        {imageSrc && (
+          <img
+            src={imageSrc}
+            alt="compusophlet"
+            className={`max-w-full max-h-full object-contain rounded-lg ${
+              !imageLoaded && !imageSrc.startsWith('data:') ? 'hidden' : ''
+            }`}
+            onLoad={() => setImageLoaded(true)}
+          />
+        )}
       </main>
 
-      {/* Sticky CTA Footer */}
-      {imageSrc && (
+      {/* Sticky CTA Footer - Single button: collect OR share */}
+      {imageSrc && (imageLoaded || imageSrc.startsWith('data:')) && (
         <div className="fixed bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black via-black/90 to-transparent">
           <div className="flex flex-col items-center gap-3">
             {isReadyToCreate && (
@@ -285,29 +305,34 @@ function App() {
                 imageBase64={imageSrc}
                 tokenId={0}
                 onMintSuccess={handleMintSuccess}
-                isCollecting={true}
+                isCollecting={false}
               />
             )}
 
             {isViewing && tokenId && (
-              <MintButton
-                imageBase64={imageSrc}
-                tokenId={tokenId}
-                onMintSuccess={() => {}}
-                isCollecting={true}
-              />
-            )}
-
-            {isCreated && tokenId && (
-              <>
+              justCollected ? (
+                <div className="flex flex-col items-center space-y-2" style={{ width: '61.803%' }}>
+                  <button
+                    disabled
+                    className="w-full flex items-center justify-center py-4 rounded-xl font-semibold text-lg bg-green-600 text-white cursor-default"
+                  >
+                    collected!
+                  </button>
+                </div>
+              ) : hasAlreadyCollected ? (
+                <ShareButton tokenId={tokenId} imageUrl={imageSrc} />
+              ) : (
                 <MintButton
                   imageBase64={imageSrc}
                   tokenId={tokenId}
-                  onMintSuccess={() => {}}
+                  onMintSuccess={handleCollectSuccess}
                   isCollecting={true}
                 />
-                <ShareButton tokenId={tokenId} />
-              </>
+              )
+            )}
+
+            {isCreated && tokenId && (
+              <ShareButton tokenId={tokenId} imageUrl={imageSrc} />
             )}
           </div>
         </div>

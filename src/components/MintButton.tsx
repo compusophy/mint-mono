@@ -11,7 +11,7 @@ interface MintButtonProps {
 
 type MintState = 'idle' | 'preparing' | 'signing' | 'confirming' | 'success' | 'error';
 
-export function MintButton({ imageBase64, tokenId = 0, onMintSuccess, isCollecting = false }: MintButtonProps) {
+export function MintButton({ imageBase64, tokenId = 0, onMintSuccess, isCollecting: _isCollecting = false }: MintButtonProps) {
   const { address, isConnected } = useAccount();
   const [mintState, setMintState] = useState<MintState>('idle');
   const [error, setError] = useState<string | null>(null);
@@ -74,6 +74,7 @@ export function MintButton({ imageBase64, tokenId = 0, onMintSuccess, isCollecti
         throw new Error(prepareData.error || 'Failed to prepare mint');
       }
 
+
       // Step 2: Submit transaction with fee
       setMintState('signing');
       console.log('Submitting mint transaction...');
@@ -125,12 +126,14 @@ export function MintButton({ imageBase64, tokenId = 0, onMintSuccess, isCollecti
   };
 
   // Update state when transaction confirms
-  if (isSuccess && mintState === 'confirming') {
-    setMintState('success');
-    onMintSuccess?.(tokenId || 1);
-    // Refetch nonce for next mint
-    refetchNonce();
-  }
+  useEffect(() => {
+    if (isSuccess && mintState === 'confirming') {
+      setMintState('success');
+      onMintSuccess?.(tokenId || 1);
+      // Refetch nonce for next mint
+      refetchNonce();
+    }
+  }, [isSuccess, mintState, onMintSuccess, tokenId, refetchNonce]);
 
   // Reset to idle after success (fade back to collect button)
   useEffect(() => {
@@ -150,17 +153,17 @@ export function MintButton({ imageBase64, tokenId = 0, onMintSuccess, isCollecti
   const getButtonText = () => {
     switch (mintState) {
       case 'preparing':
-        return isCollecting ? 'preparing...' : 'uploading...';
+        return 'preparing...';
       case 'signing':
         return 'sign in wallet...';
       case 'confirming':
         return 'confirming...';
       case 'success':
-        return isCollecting ? 'collected!' : 'minted!';
+        return 'collected!';
       case 'error':
         return 'retry';
       default:
-        return isCollecting ? 'collect' : 'mint';
+        return 'collect';
     }
   };
 

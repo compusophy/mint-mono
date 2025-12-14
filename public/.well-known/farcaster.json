@@ -1,17 +1,17 @@
 {
   "accountAssociation": {
-    "header": "eyJmaWQiOjEyMzQ1LCJ0eXBlIjoiY3VzdG9keSIsImtleSI6IjB4Li4uIn0",
-    "payload": "eyJkb21haW4iOiJjb21wdS1nbnBmcC52ZXJjZWwuYXBwIn0",
-    "signature": "MHg..."
+    "header": "eyJmaWQiOjM1MDkxMSwidHlwZSI6ImN1c3RvZHkiLCJrZXkiOiIweDJGREVmM0Y0NzBlQ2QyQmM5YTk3NzU2OEM0M0FEMzg2MGMxNjExRDgifQ",
+    "payload": "eyJkb21haW4iOiJjb21wdXNvcGhsZXRzLnZlcmNlbC5hcHAifQ",
+    "signature": "WWRv1r6cdFk62AHKcZD9zYxsylP8sjnvp4c7gkzbBAxddQfgdQePHM5uEErF3oD6NSd8JZYp/1x7Wxmq+XeSCRw="
   },
   "frame": {
     "version": "1",
-    "name": "Generative PFP",
-    "iconUrl": "https://compu-gnpfp.vercel.app/icon.png",
-    "homeUrl": "https://compu-gnpfp.vercel.app",
-    "imageUrl": "https://compu-gnpfp.vercel.app/icon.png",
-    "buttonTitle": "Create PFP",
-    "splashImageUrl": "https://compu-gnpfp.vercel.app/icon.png",
-    "splashBackgroundColor": "#0f172a"
+    "name": "compusophlets",
+    "iconUrl": "https://compusophlets.vercel.app/icon.png",
+    "homeUrl": "https://compusophlets.vercel.app",
+    "imageUrl": "https://compusophlets.vercel.app/icon.png",
+    "buttonTitle": "compusophlets",
+    "splashImageUrl": "https://compusophlets.vercel.app/icon.png",
+    "splashBackgroundColor": "#000000"
   }
 }

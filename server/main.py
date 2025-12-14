@@ -13,12 +13,11 @@ from signer import create_mint_signature, get_signer_address
 
 app = FastAPI(title="compusophlets API")
 
-# CORS - only allow our frontend
+# CORS - allow our frontend
 ALLOWED_ORIGINS = [
     "https://compusophlets.vercel.app",
-    "https://compu-gnpfp.vercel.app",  # Legacy
-    "http://localhost:5173",  # Local dev
-    "http://localhost:3000",  # Local dev alt
+    "http://localhost:5173",
+    "http://localhost:3000",
 ]
 
 app.add_middleware(

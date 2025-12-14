@@ -1,4 +1,16 @@
 {
+  "rewrites": [
+    {
+      "source": "/",
+      "has": [
+        {
+          "type": "query",
+          "key": "token"
+        }
+      ],
+      "destination": "/api/og"
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",
@@ -35,6 +47,23 @@
         {
           "key": "Content-Type",
           "value": "application/json"
+        }
+      ]
+    },
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        },
+        {
+          "key": "Access-Control-Allow-Methods",
+          "value": "GET, POST, OPTIONS"
+        },
+        {
+          "key": "Access-Control-Allow-Headers",
+          "value": "Content-Type"
         }
       ]
     }

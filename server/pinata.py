@@ -82,11 +82,13 @@ async def upload_metadata_to_ipfs(
     headers["Content-Type"] = "application/json"
     
     # Build metadata following ERC-1155 metadata standard
+    # Note: We don't include token_id in name since we don't know the actual ID yet
+    # The contract assigns the ID on-chain
     metadata = {
-        "name": f"compusophlet #{token_id}",
-        "description": "a unique compusophlet - computational philosophlets",
+        "name": "compusophlet",
+        "description": "a unique compusophlet",
         "image": f"ipfs://{image_cid}",
-        "external_url": f"https://compusophlets.vercel.app/?token={token_id}",
+        "external_url": "https://compusophlets.vercel.app",
     }
     
     # Pin JSON to IPFS

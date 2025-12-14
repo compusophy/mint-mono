@@ -87,6 +87,16 @@ export const COMPUSOPHLETS_ABI = [
     inputs: [{ name: 'id', type: 'uint256' }],
     outputs: [{ name: '', type: 'uint256' }],
   },
+  {
+    name: 'hasCollected',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [
+      { name: 'tokenId', type: 'uint256' },
+      { name: 'account', type: 'address' },
+    ],
+    outputs: [{ name: '', type: 'bool' }],
+  },
 ] as const;
 
 // API URL
@@ -95,7 +105,7 @@ export const API_URL = import.meta.env.PROD
   : 'http://localhost:8000';
 
 // Contract address on Base mainnet (will be updated after V2 deploy)
-export const CONTRACT_ADDRESS = '0xA82F4e3Fd33Ee08aFe3EaFfA375C71EF357f75AB' as `0x${string}`;
+export const CONTRACT_ADDRESS = '0xcfb9F741a23dFaED6da3170B07DE076E75dFC019' as `0x${string}`;
 
 // Mint fee in wei (0.0003 ETH)
 export const MINT_FEE = 300000000000000n; // 0.0003 ETH
